@@ -3,146 +3,114 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>全球地图 - 合并同地点单针、多标签</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <title>多标签地图</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
-    html, body, #map { height: 100%; width: 100%; margin: 0; }
-    #controls { position: absolute; top: 10px; left: 10px; background: rgba(255,255,255,0.95); padding: 10px; border-radius: 10px; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
-    #controls input, #controls select, #controls button { margin: 4px 0; }
-
-    /* 自定义单针 + 多标签样式 */
-    .pin-wrapper { display: inline-flex; align-items: center; gap: 8px; transform: translateY(-12px); font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; }
-    .pin-emoji { font-size: 22px; line-height: 1; }
-    .labels { display: inline-flex; gap: 6px; flex-wrap: wrap; }
-    .chip { font-size: 13px; background: #fff; border: 1px solid rgba(0,0,0,0.12); box-shadow: 0 2px 6px rgba(0,0,0,0.08); border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
-
-    /* 提示 */
-    .hint { position: absolute; right: 10px; bottom: 10px; z-index: 900; background: rgba(255,255,255,0.95); padding: 8px 10px; border-radius: 10px; font-size: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);} 
+    html, body, #map { height: 100%; margin: 0; }
+    .control-panel {
+      position: absolute; top: 10px; left: 10px; z-index: 1000;
+      background: white; padding: 10px; border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+      font-family: sans-serif; font-size: 14px;
+    }
+    .pin-wrapper { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; transform: translateY(-12px); }
+    .pin-emoji { font-size: 22px; }
+    .pin-label {
+      font-size: 12px; background: #fff; border: 1px solid rgba(0,0,0,0.12);
+      border-radius: 8px; padding: 2px 6px; white-space: nowrap;
+    }
   </style>
 </head>
 <body>
-  <div id="controls">
-    <div><strong>修改位置</strong></div>
-    <label>
-      选择名字：
-      <select id="person-select"></select>
-    </label>
-    <br/>
-    <input id="place-input" placeholder="输入新地点，如：深圳 / 广州 / Washington DC" size="36" />
-    <br/>
-    <button id="update-btn">更新到该地点</button>
-  </div>
-  <div id="map"></div>
-  <div class="hint">同一坐标只显示 <b>1 个📌</b>，但会同时展示该地点的所有名字（标签）。</div>
+<div id="map"></div>
+<div class="control-panel">
+  <label>选择名字：<select id="nameSelect"></select></label><br>
+  <label>新地点：<input type="text" id="newPlace" placeholder="例如：广州"></label><br>
+  <button id="updateBtn">更新到该地点</button>
+</div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-  <script>
-    // ====== 1) 地图初始化 ======
-    const map = L.map('map', { worldCopyJump: true, zoomControl: true }).setView([22, 110], 3);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors'
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const map = L.map('map').setView([22, 110], 3);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19,
+  attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
+
+let people = [
+  { name: '玉洁', coords: [23.1291, 113.2644] },
+  { name: '佳妮', coords: [23.1291, 113.2644] },
+  { name: '厚麟', coords: [23.1291, 113.2644] },
+  { name: '包包', coords: [39.9042, 116.4074] },
+  { name: 'qq', coords: [38.9072, -77.0369] },
+  { name: '紫晴', coords: [35.0116, 135.7681] },
+  { name: '小朱', coords: [29.3503, 105.4417] },
+  { name: '志琦', coords: [23.3411, 114.1791] },
+  { name: 'nana', coords: [39.4699, -0.3763] },
+  { name: 'cx', coords: [22.5431, 114.0579] },
+  { name: '君虹', coords: [22.5431, 114.0579] },
+  { name: '嘉怡', coords: [22.5431, 114.0579] },
+  { name: '彬炫', coords: [22.7783, 115.3653] },
+  { name: '悦悦', coords: [22.2705, 113.5767] },
+  { name: '瑾宝', coords: [31.2304, 121.4737] }
+];
+
+let markers = [];
+
+function groupPeople() {
+  const groups = {};
+  people.forEach(p => {
+    const key = p.coords.map(c => c.toFixed(3)).join(',');
+    if (!groups[key]) groups[key] = { coords: p.coords, names: [] };
+    groups[key].names.push(p.name);
+  });
+  return Object.values(groups);
+}
+
+function renderMarkers() {
+  markers.forEach(m => map.removeLayer(m));
+  markers = [];
+  const groups = groupPeople();
+  groups.forEach(g => {
+    const html = `<div class="pin-wrapper"><span class="pin-emoji">📌</span>${g.names.map(n => `<span class="pin-label">${n}</span>`).join('')}</div>`;
+    const marker = L.marker(g.coords, {
+      icon: L.divIcon({ html, className: '', iconSize: [0,0], iconAnchor: [12,22] })
     }).addTo(map);
+    marker.bindPopup(g.names.join(', '));
+    markers.push(marker);
+  });
+}
 
-    // ====== 2) 当前人员-坐标数据（独立人物） ======
-    // 注：深圳坐标 22.5431, 114.0579；广州 23.1291, 113.2644；北京 39.9042, 116.4074
-    const people = {
-      '玉洁':   [23.1291, 113.2644], // 广州
-      '佳妮':   [23.1291, 113.2644], // 广州
-      '厚麟':   [23.1291, 113.2644], // 广州
-      '包包':   [39.9042, 116.4074], // 北京
-      'qq':     [38.9072, -77.0369], // 华盛顿特区
-      '紫晴':   [35.0116, 135.7681], // 京都
-      '小猪':   [29.3503, 105.4417], // 泸州（虚线到北疆）
-      '志琦':   [23.3411, 114.1791], // 罗浮山
-      'nana':   [39.4699, -0.3763],  // 西班牙(瓦伦西亚)
-      'cx':     [22.5431, 114.0579], // 深圳
-      '君虹':   [22.5431, 114.0579], // 深圳
-      '嘉怡':   [22.5431, 114.0579], // 深圳
-      '彬炫':   [22.7783, 115.3653], // 汕尾
-      '悦悦':   [22.2705, 113.5767], // 珠海
-      '瑾宝':   [31.2304, 121.4737]  // 上海
-    };
+function populateNameSelect() {
+  const sel = document.getElementById('nameSelect');
+  sel.innerHTML = '';
+  people.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p.name; opt.textContent = p.name;
+    sel.appendChild(opt);
+  });
+}
 
-    // 一个容器保存当前渲染的 marker（按 groupKey 存）
-    let groupLayer = L.layerGroup().addTo(map);
+async function geocode(place) {
+  const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(place)}`;
+  const res = await fetch(url);
+  const data = await res.json();
+  if (data.length > 0) return [parseFloat(data[0].lat), parseFloat(data[0].lon)];
+  return null;
+}
 
-    // ====== 3) 工具函数：合并同地点（带容差） ======
-    // 容差：小数点后 3 位（~100m-200m 量级），避免同城细微差异导致多个针
-    const PRECISION = 3;
-    function keyFor([lat, lng]) { return lat.toFixed(PRECISION) + ',' + lng.toFixed(PRECISION); }
+document.getElementById('updateBtn').addEventListener('click', async () => {
+  const name = document.getElementById('nameSelect').value;
+  const place = document.getElementById('newPlace').value.trim();
+  if (!place) return alert('请输入地点');
+  const coords = await geocode(place);
+  if (!coords) return alert('找不到该地点');
+  people.find(p => p.name === name).coords = coords;
+  renderMarkers();
+});
 
-    function groupPeopleByLocation(dataObj) {
-      const groups = new Map(); // key -> { coords:[lat,lng], names:[name,...] }
-      for (const [name, coords] of Object.entries(dataObj)) {
-        const k = keyFor(coords);
-        if (!groups.has(k)) groups.set(k, { coords: coords.slice(0), names: [] });
-        groups.get(k).names.push(name);
-      }
-      return groups;
-    }
-
-    // ====== 4) 渲染函数：按分组只画 1 个针，标签展示所有名字 ======
-    function makeDivIcon(names) {
-      const labelsHtml = names.map(n => `<span class="chip">${n}</span>`).join('');
-      const html = `<div class="pin-wrapper"><span class="pin-emoji">📌</span><span class="labels">${labelsHtml}</span></div>`;
-      return L.divIcon({ html, className: '', iconSize: [0,0], iconAnchor: [12,22] });
-    }
-
-    function renderMarkers() {
-      groupLayer.clearLayers();
-      const groups = groupPeopleByLocation(people);
-      groups.forEach(({coords, names}) => {
-        const marker = L.marker(coords, { icon: makeDivIcon(names) }).addTo(groupLayer);
-        marker.bindPopup(names.join('、'));
-      });
-
-      // 自适应视野（包含所有分组点）
-      const bounds = L.latLngBounds([]);
-      groups.forEach(({coords}) => bounds.extend(coords));
-      if (bounds.isValid()) map.fitBounds(bounds.pad(0.3));
-    }
-
-    // 初次渲染
-    renderMarkers();
-
-    // ====== 5) 小猪迁移路线（泸州 -> 北疆示例：乌鲁木齐） ======
-    L.polyline([[29.3503, 105.4417], [43.8175, 87.6083]], { dashArray: '5,5', color: 'gray' }).addTo(map);
-
-    // ====== 6) 交互：选择名字 + 输入地点，进行地理编码后更新 ======
-    // 下拉人名
-    const selectEl = document.getElementById('person-select');
-    Object.keys(people).forEach(name => {
-      const opt = document.createElement('option');
-      opt.value = name; opt.textContent = name; selectEl.appendChild(opt);
-    });
-
-    // 简单地理编码（Nominatim）。生产环境请注意速率限制与 User-Agent 规范。
-    function geocode(place) {
-      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(place)}`;
-      return fetch(url, { headers: { 'Accept-Language': 'zh-CN' }})
-        .then(r => r.json())
-        .then(rows => {
-          if (!rows || !rows.length) throw new Error('未找到该地点');
-          return [parseFloat(rows[0].lat), parseFloat(rows[0].lon)];
-        });
-    }
-
-    document.getElementById('update-btn').addEventListener('click', () => {
-      const name = selectEl.value;
-      const place = document.getElementById('place-input').value.trim();
-      if (!name) return alert('请选择名字');
-      if (!place) return alert('请输入地点');
-
-      geocode(place).then(coords => {
-        // 更新该人的坐标
-        people[name] = coords;
-        // 重新分组并渲染（自动合并/拆分同地点针）
-        renderMarkers();
-        // 聚焦
-        map.setView(coords, 10);
-      }).catch(err => alert(err.message || '定位失败'));
-    });
-  </script>
+populateNameSelect();
+renderMarkers();
+</script>
 </body>
 </html>
